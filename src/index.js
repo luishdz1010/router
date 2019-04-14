@@ -593,5 +593,6 @@ export {
   navigate,
   redirectTo,
   globalHistory,
-  match as matchPath
+  match as matchPath,
+  LocationContext
 };
