@@ -1,6 +1,5 @@
 /node_modules
 /umd
-/lib
 /compat
 npm-debug.log*
 yarn-error.log*
