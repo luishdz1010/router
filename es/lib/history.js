@@ -4,12 +4,14 @@ var getLocation = function getLocation(source) {
   var _source$location = source.location,
       pathname = _source$location.pathname,
       search = _source$location.search,
-      hash = _source$location.hash;
+      hash = _source$location.hash,
+      host = _source$location.host;
 
   return {
     pathname: pathname,
     search: search,
     hash: hash,
+    host: host,
     state: source.history.state,
     key: source.history.state && source.history.state.key || "initial"
   };

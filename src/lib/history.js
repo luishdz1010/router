@@ -1,9 +1,10 @@
 let getLocation = source => {
-  const { pathname, search, hash } = source.location;
+  const { pathname, search, hash, host } = source.location;
   return {
     pathname,
     search,
     hash,
+    host,
     state: source.history.state,
     key: (source.history.state && source.history.state.key) || "initial"
   };
