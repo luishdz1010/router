@@ -1,17 +1,13 @@
 "use strict";
 
 exports.__esModule = true;
-exports.LocationContext = exports.globalHistory = exports.redirectTo = exports.navigate = exports.isRedirect = exports.createMemorySource = exports.createHistory = exports.ServerLocation = exports.Router = exports.Redirect = exports.Match = exports.LocationProvider = exports.Location = exports.Link = undefined;
+exports.LocationContext = exports.matchPath = exports.globalHistory = exports.redirectTo = exports.navigate = exports.isRedirect = exports.createMemorySource = exports.createHistory = exports.ServerLocation = exports.Router = exports.Redirect = exports.Match = exports.LocationProvider = exports.Location = exports.Link = undefined;
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 var _react = require("react");
 
 var _react2 = _interopRequireDefault(_react);
-
-var _warning = require("warning");
-
-var _warning2 = _interopRequireDefault(_warning);
 
 var _propTypes = require("prop-types");
 
@@ -120,6 +116,7 @@ var LocationProvider = function (_React$Component) {
     var refs = this.state.refs,
         history = this.props.history;
 
+    history._onTransitionComplete();
     refs.unlisten = history.listen(function () {
       Promise.resolve().then(function () {
         // TODO: replace rAF with react deferred update API when it's ready https://github.com/facebook/react/issues/13306
@@ -167,14 +164,28 @@ process.env.NODE_ENV !== "production" ? LocationProvider.propTypes = {
 var ServerLocation = function ServerLocation(_ref2) {
   var url = _ref2.url,
       children = _ref2.children;
+
+  var searchIndex = url.indexOf("?");
+  var searchExists = searchIndex > -1;
+  var pathname = void 0;
+  var search = "";
+  var hash = "";
+
+  if (searchExists) {
+    pathname = url.substring(0, searchIndex);
+    search = url.substring(searchIndex);
+  } else {
+    pathname = url;
+  }
+
   return _react2.default.createElement(
     LocationContext.Provider,
     {
       value: {
         location: {
-          pathname: url,
-          search: "",
-          hash: ""
+          pathname: pathname,
+          search: search,
+          hash: hash
         },
         navigate: function navigate() {
           throw new Error("You can't call navigate on the server.");
@@ -184,7 +195,6 @@ var ServerLocation = function ServerLocation(_ref2) {
     children
   );
 };
-
 ////////////////////////////////////////////////////////////////////////////////
 // Sets baseuri and basepath for nested routers and links
 var BaseContext = createNamedContext("Base", { baseuri: "/", basepath: "/" });
@@ -228,7 +238,15 @@ var RouterImpl = function (_React$PureComponent) {
         component = _props$component === undefined ? "div" : _props$component,
         domProps = _objectWithoutProperties(_props, ["location", "navigate", "basepath", "primary", "children", "baseuri", "component"]);
 
-    var routes = _react2.default.Children.map(children, createRoute(basepath));
+    var routes = _react2.default.Children.toArray(children).reduce(function (array, child) {
+      var routes = createRoute(basepath)(child);
+      if (routes instanceof Array) {
+        return array.concat(routes);
+      } else {
+        array.push(routes);
+        return array;
+      }
+    }, []);
     var pathname = location.pathname;
 
 
@@ -254,7 +272,7 @@ var RouterImpl = function (_React$PureComponent) {
 
       var clone = _react2.default.cloneElement(element, props, element.props.children ? _react2.default.createElement(
         Router,
-        { primary: primary },
+        { location: location, primary: primary },
         element.props.children
       ) : undefined);
 
@@ -476,8 +494,9 @@ var Link = forwardRef(function (_ref4, ref) {
               anchorProps = _objectWithoutProperties(props, ["to", "state", "replace", "getProps"]);
 
           var href = (0, _utils.resolve)(to, baseuri);
-          var isCurrent = location.pathname === href;
-          var isPartiallyCurrent = (0, _utils.startsWith)(location.pathname, href);
+          var encodedHref = encodeURI(href);
+          var isCurrent = location.pathname === encodedHref;
+          var isPartiallyCurrent = (0, _utils.startsWith)(location.pathname, encodedHref);
 
           return _react2.default.createElement("a", _extends({
             ref: ref || innerRef,
@@ -497,6 +516,12 @@ var Link = forwardRef(function (_ref4, ref) {
     }
   );
 });
+
+Link.displayName = "Link";
+
+process.env.NODE_ENV !== "production" ? Link.propTypes = {
+  to: _propTypes2.default.string.isRequired
+} : void 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 function RedirectRequest(uri) {
@@ -624,9 +649,12 @@ var createRoute = function createRoute(basepath) {
       return null;
     }
 
+    if (element.type === _react2.default.Fragment && element.props.children) {
+      return _react2.default.Children.map(element.props.children, createRoute(basepath));
+    }
     !(element.props.path || element.props.default || element.type === Redirect) ? process.env.NODE_ENV !== "production" ? (0, _invariant2.default)(false, "<Router>: Children of <Router> must have a `path` or `default` prop, or be a `<Redirect>`. None found on element type `" + element.type + "`") : (0, _invariant2.default)(false) : void 0;
 
-    !!(element.type === Redirect && (!element.props.from || !element.props.to)) ? process.env.NODE_ENV !== "production" ? (0, _invariant2.default)(false, "<Redirect from=\"" + element.props.from + " to=\"" + element.props.to + "\"/> requires both \"from\" and \"to\" props when inside a <Router>.") : (0, _invariant2.default)(false) : void 0;
+    !!(element.type === Redirect && (!element.props.from || !element.props.to)) ? process.env.NODE_ENV !== "production" ? (0, _invariant2.default)(false, "<Redirect from=\"" + element.props.from + "\" to=\"" + element.props.to + "\"/> requires both \"from\" and \"to\" props when inside a <Router>.") : (0, _invariant2.default)(false) : void 0;
 
     !!(element.type === Redirect && !(0, _utils.validateRedirect)(element.props.from, element.props.to)) ? process.env.NODE_ENV !== "production" ? (0, _invariant2.default)(false, "<Redirect from=\"" + element.props.from + " to=\"" + element.props.to + "\"/> has mismatched dynamic segments, ensure both paths have the exact same dynamic segments.") : (0, _invariant2.default)(false) : void 0;
 
@@ -664,4 +692,5 @@ exports.isRedirect = isRedirect;
 exports.navigate = _history.navigate;
 exports.redirectTo = redirectTo;
 exports.globalHistory = _history.globalHistory;
+exports.matchPath = _utils.match;
 exports.LocationContext = LocationContext;

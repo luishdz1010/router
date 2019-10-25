@@ -10,7 +10,6 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 
 /* eslint-disable jsx-a11y/anchor-has-content */
 import React from "react";
-import warning from "warning";
 import PropTypes from "prop-types";
 import invariant from "invariant";
 import createContext from "create-react-context";
@@ -96,6 +95,7 @@ var LocationProvider = function (_React$Component) {
     var refs = this.state.refs,
         history = this.props.history;
 
+    history._onTransitionComplete();
     refs.unlisten = history.listen(function () {
       Promise.resolve().then(function () {
         // TODO: replace rAF with react deferred update API when it's ready https://github.com/facebook/react/issues/13306
@@ -143,14 +143,28 @@ process.env.NODE_ENV !== "production" ? LocationProvider.propTypes = {
 var ServerLocation = function ServerLocation(_ref2) {
   var url = _ref2.url,
       children = _ref2.children;
+
+  var searchIndex = url.indexOf("?");
+  var searchExists = searchIndex > -1;
+  var pathname = void 0;
+  var search = "";
+  var hash = "";
+
+  if (searchExists) {
+    pathname = url.substring(0, searchIndex);
+    search = url.substring(searchIndex);
+  } else {
+    pathname = url;
+  }
+
   return React.createElement(
     LocationContext.Provider,
     {
       value: {
         location: {
-          pathname: url,
-          search: "",
-          hash: ""
+          pathname: pathname,
+          search: search,
+          hash: hash
         },
         navigate: function navigate() {
           throw new Error("You can't call navigate on the server.");
@@ -160,7 +174,6 @@ var ServerLocation = function ServerLocation(_ref2) {
     children
   );
 };
-
 ////////////////////////////////////////////////////////////////////////////////
 // Sets baseuri and basepath for nested routers and links
 var BaseContext = createNamedContext("Base", { baseuri: "/", basepath: "/" });
@@ -204,7 +217,15 @@ var RouterImpl = function (_React$PureComponent) {
         component = _props$component === undefined ? "div" : _props$component,
         domProps = _objectWithoutProperties(_props, ["location", "navigate", "basepath", "primary", "children", "baseuri", "component"]);
 
-    var routes = React.Children.map(children, createRoute(basepath));
+    var routes = React.Children.toArray(children).reduce(function (array, child) {
+      var routes = createRoute(basepath)(child);
+      if (routes instanceof Array) {
+        return array.concat(routes);
+      } else {
+        array.push(routes);
+        return array;
+      }
+    }, []);
     var pathname = location.pathname;
 
 
@@ -230,7 +251,7 @@ var RouterImpl = function (_React$PureComponent) {
 
       var clone = React.cloneElement(element, props, element.props.children ? React.createElement(
         Router,
-        { primary: primary },
+        { location: location, primary: primary },
         element.props.children
       ) : undefined);
 
@@ -452,8 +473,9 @@ var Link = forwardRef(function (_ref4, ref) {
               anchorProps = _objectWithoutProperties(props, ["to", "state", "replace", "getProps"]);
 
           var href = resolve(to, baseuri);
-          var isCurrent = location.pathname === href;
-          var isPartiallyCurrent = startsWith(location.pathname, href);
+          var encodedHref = encodeURI(href);
+          var isCurrent = location.pathname === encodedHref;
+          var isPartiallyCurrent = startsWith(location.pathname, encodedHref);
 
           return React.createElement("a", _extends({
             ref: ref || innerRef,
@@ -473,6 +495,12 @@ var Link = forwardRef(function (_ref4, ref) {
     }
   );
 });
+
+Link.displayName = "Link";
+
+process.env.NODE_ENV !== "production" ? Link.propTypes = {
+  to: PropTypes.string.isRequired
+} : void 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 function RedirectRequest(uri) {
@@ -600,9 +628,12 @@ var createRoute = function createRoute(basepath) {
       return null;
     }
 
+    if (element.type === React.Fragment && element.props.children) {
+      return React.Children.map(element.props.children, createRoute(basepath));
+    }
     !(element.props.path || element.props.default || element.type === Redirect) ? process.env.NODE_ENV !== "production" ? invariant(false, "<Router>: Children of <Router> must have a `path` or `default` prop, or be a `<Redirect>`. None found on element type `" + element.type + "`") : invariant(false) : void 0;
 
-    !!(element.type === Redirect && (!element.props.from || !element.props.to)) ? process.env.NODE_ENV !== "production" ? invariant(false, "<Redirect from=\"" + element.props.from + " to=\"" + element.props.to + "\"/> requires both \"from\" and \"to\" props when inside a <Router>.") : invariant(false) : void 0;
+    !!(element.type === Redirect && (!element.props.from || !element.props.to)) ? process.env.NODE_ENV !== "production" ? invariant(false, "<Redirect from=\"" + element.props.from + "\" to=\"" + element.props.to + "\"/> requires both \"from\" and \"to\" props when inside a <Router>.") : invariant(false) : void 0;
 
     !!(element.type === Redirect && !validateRedirect(element.props.from, element.props.to)) ? process.env.NODE_ENV !== "production" ? invariant(false, "<Redirect from=\"" + element.props.from + " to=\"" + element.props.to + "\"/> has mismatched dynamic segments, ensure both paths have the exact same dynamic segments.") : invariant(false) : void 0;
 
@@ -627,4 +658,4 @@ var shouldNavigate = function shouldNavigate(event) {
 };
 
 ////////////////////////////////////////////////////////////////////////
-export { Link, Location, LocationProvider, Match, Redirect, Router, ServerLocation, createHistory, createMemorySource, isRedirect, navigate, redirectTo, globalHistory, LocationContext };
+export { Link, Location, LocationProvider, Match, Redirect, Router, ServerLocation, createHistory, createMemorySource, isRedirect, navigate, redirectTo, globalHistory, match as matchPath, LocationContext };
